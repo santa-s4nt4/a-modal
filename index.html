@@ -279,8 +279,7 @@
 
     <div id="sidebar">
       <div class="panel-header">
-        <span class="tab">Design</span>
-        <span style="color: #b3b3b3;">Prototype</span>
+        <span class="tab">Settings</span>
       </div>
 
       <div class="section">
@@ -293,6 +292,11 @@
             <option value="horizontal">横書き (Horizontal)</option>
             <option value="vertical">縦書き (Vertical)</option>
           </select>
+        </div>
+        <div class="row">
+          <label style="width: auto; padding-right: 4px; font-family: monospace; font-weight: bold;">VA</label>
+          <input type="range" id="letterSpacingSlider" min="-100" max="200" value="0">
+          <input type="number" id="letterSpacingInput" value="0" style="width: 48px;">
         </div>
       </div>
 
@@ -358,6 +362,10 @@
           <input type="checkbox" id="previewToggle" checked>
           <span>プレビューにマスク（白）を適用</span>
         </label>
+        <label class="checkbox-row" style="width: 100%; text-align: left; margin-top: 8px;">
+          <input type="checkbox" id="drawHandImage">
+          <span>配置図形の中心に hand.png を描画</span>
+        </label>
         <p style="color: #888; margin: 8px 0 0 0; line-height: 1.4;">
           ※ Cmd+ZでUndo、Cmd+Shift+ZでRedo。<br>※ Spaceキーで特徴点表示切替。
         </p>
@@ -390,9 +398,20 @@
     let pg;
     let showDebug = true;
 
+    // hand.png
+    let handImg;
+
+    // 手画像の中心補正
+    const HAND_OFFSET_X = 0;
+    const HAND_OFFSET_Y = +15;
+
     function onOpenCvReady() {
       cvReady = true;
       console.log("OpenCV.js Ready");
+    }
+
+    function preload() {
+      handImg = loadImage('hand.png');
     }
 
     function setup() {
@@ -416,11 +435,18 @@
         }
       });
 
-      // スライダーと数値入力の同期
+      // マスクサイズスライダーと数値入力の同期
       let slider = document.getElementById('sizeSlider');
       let numInput = document.getElementById('sizeValInput');
       slider.addEventListener('input', (e) => { numInput.value = e.target.value; });
       numInput.addEventListener('change', (e) => { slider.value = e.target.value; });
+
+      // 文字間隔スライダーと数値入力の同期 ＆ 変更時に自動再解析を走らせる
+      let lsSlider = document.getElementById('letterSpacingSlider');
+      let lsInput = document.getElementById('letterSpacingInput');
+      lsSlider.addEventListener('input', (e) => { lsInput.value = e.target.value; });
+      lsSlider.addEventListener('change', (e) => { lsInput.value = e.target.value; applyChanges(); });
+      lsInput.addEventListener('change', (e) => { lsSlider.value = e.target.value; applyChanges(); });
 
       // Undo/Redo
       window.addEventListener('keydown', (e) => {
@@ -445,7 +471,6 @@
       let selectedFont = document.getElementById('fontSelect').value;
       if (selectedFont === 'custom') {
         let customVal = document.getElementById('customFontInput').value;
-        // 空白の場合は安全のためゴシックにフォールバック
         CURRENT_FONT = customVal ? `'${customVal}', sans-serif` : "sans-serif";
       } else {
         CURRENT_FONT = selectedFont;
@@ -453,18 +478,30 @@
 
       drawingContext.font = `bold ${FONT_SIZE}px ${CURRENT_FONT}`;
 
+      // 文字間隔の取得
+      let letterSpacing = parseInt(document.getElementById('letterSpacingSlider').value);
+
       let newWidth = 400;
       let newHeight = 400;
       let workspace = document.getElementById('workspace');
 
       if (TEXT_DIR === "horizontal") {
-        let textWidthCalc = drawingContext.measureText(TARGET_TEXT).width;
-        newWidth = Math.max(400, textWidthCalc + 200);
+        // 横書き：一文字ずつの幅 ＋ 指定された文字間隔の合計でキャンバス幅を計算
+        let totalW = 0;
+        for (let i = 0; i < TARGET_TEXT.length; i++) {
+          totalW += drawingContext.measureText(TARGET_TEXT[i]).width;
+          if (i < TARGET_TEXT.length - 1) {
+            totalW += letterSpacing;
+          }
+        }
+        newWidth = Math.max(400, totalW + 200);
         newHeight = FONT_SIZE + 150;
         workspace.className = "layout-vertical";
       } else {
+        // 縦書き：一文字の送りサイズ ＋ 指定された文字間隔の合計でキャンバス高さを計算
+        let charSpacing = (FONT_SIZE * 1.05) + letterSpacing;
         newWidth = Math.max(400, FONT_SIZE + 150);
-        newHeight = (FONT_SIZE * 1.05 * TARGET_TEXT.length) + 150;
+        newHeight = (charSpacing * (TARGET_TEXT.length - 1)) + FONT_SIZE + 150;
         workspace.className = "layout-horizontal";
       }
 
@@ -483,15 +520,35 @@
     function renderTextToBuffer() {
       pg.background(255);
       pg.fill(0);
-      pg.textAlign(CENTER, CENTER);
       pg.textFont(CURRENT_FONT);
       pg.textSize(FONT_SIZE);
       pg.textStyle(BOLD);
 
+      let letterSpacing = parseInt(document.getElementById('letterSpacingSlider').value);
+
       if (TEXT_DIR === "horizontal") {
-        pg.text(TARGET_TEXT, width / 2, height / 2);
+        pg.textAlign(LEFT, CENTER);
+
+        // 全体の幅を測定して開始位置（startX）を割り出す
+        let totalW = 0;
+        let charWidths = [];
+        for (let i = 0; i < TARGET_TEXT.length; i++) {
+          let w = pg.textWidth(TARGET_TEXT[i]);
+          charWidths.push(w);
+          totalW += w;
+          if (i < TARGET_TEXT.length - 1) {
+            totalW += letterSpacing;
+          }
+        }
+
+        let currentX = width / 2 - totalW / 2;
+        for (let i = 0; i < TARGET_TEXT.length; i++) {
+          pg.text(TARGET_TEXT[i], currentX, height / 2);
+          currentX += charWidths[i] + letterSpacing;
+        }
       } else {
-        let charSpacing = FONT_SIZE * 1.05;
+        pg.textAlign(CENTER, CENTER);
+        let charSpacing = (FONT_SIZE * 1.05) + letterSpacing;
         let totalH = charSpacing * (TARGET_TEXT.length - 1);
         let startY = height / 2 - totalH / 2;
         for (let i = 0; i < TARGET_TEXT.length; i++) {
@@ -587,23 +644,72 @@
     }
 
     function updatePreviewCanvas() {
+
       let pCanvas = document.getElementById('previewCanvas');
       let ctx = pCanvas.getContext('2d');
 
+      // 背景
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, pCanvas.width, pCanvas.height);
+
+      // テキスト描画
       ctx.drawImage(pg.canvas, 0, 0);
 
+      // 白マスク
       if (document.getElementById('previewToggle').checked) {
+
         ctx.fillStyle = "#ffffff";
+
         for (let m of placedMasks) {
+
           ctx.beginPath();
+
           if (m.shape === 'circle') {
-            ctx.arc(m.x, m.y, m.size, 0, Math.PI * 2);
-          } else if (m.shape === 'rect') {
-            ctx.rect(m.x - m.size, m.y - m.size, m.size * 2, m.size * 2);
+
+            ctx.arc(
+              m.x,
+              m.y,
+              m.size,
+              0,
+              Math.PI * 2
+            );
+
+          } else {
+
+            ctx.rect(
+              m.x - m.size,
+              m.y - m.size,
+              m.size * 2,
+              m.size * 2
+            );
           }
+
           ctx.fill();
+        }
+      }
+
+      // hand.png
+      if (
+        document.getElementById('drawHandImage').checked &&
+        handImg &&
+        placedMasks.length > 0
+      ) {
+
+        for (let m of placedMasks) {
+
+          // 図形サイズに追従
+          const imgSize = m.size * 3;
+
+          // デバッグ用
+          // console.log(m.x, m.y);
+
+          ctx.drawImage(
+            handImg.canvas,
+            Math.round(m.x - imgSize / 2 + HAND_OFFSET_X),
+            Math.round(m.y - imgSize / 2 + HAND_OFFSET_Y),
+            imgSize,
+            imgSize
+          );
         }
       }
     }
@@ -621,10 +727,25 @@
       let svgCode = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">\n`;
       svgCode += `<rect width="${width}" height="${height}" fill="white" />\n`;
 
+      let letterSpacing = parseInt(document.getElementById('letterSpacingSlider').value);
+
       if (TEXT_DIR === "horizontal") {
-        svgCode += `<text x="${width / 2}" y="${height / 2}" font-family="${CURRENT_FONT}" font-size="${FONT_SIZE}" font-weight="bold" text-anchor="middle" dominant-baseline="central" fill="black">${TARGET_TEXT}</text>\n`;
+        drawingContext.font = `bold ${FONT_SIZE}px ${CURRENT_FONT}`;
+        let totalW = 0;
+        let charWidths = [];
+        for (let i = 0; i < TARGET_TEXT.length; i++) {
+          let w = drawingContext.measureText(TARGET_TEXT[i]).width;
+          charWidths.push(w);
+          totalW += w;
+          if (i < TARGET_TEXT.length - 1) totalW += letterSpacing;
+        }
+        let currentX = width / 2 - totalW / 2;
+        for (let i = 0; i < TARGET_TEXT.length; i++) {
+          svgCode += `<text x="${currentX}" y="${height / 2}" font-family="${CURRENT_FONT}" font-size="${FONT_SIZE}" font-weight="bold" text-anchor="start" dominant-baseline="central" fill="black">${TARGET_TEXT[i]}</text>\n`;
+          currentX += charWidths[i] + letterSpacing;
+        }
       } else {
-        let charSpacing = FONT_SIZE * 1.05;
+        let charSpacing = (FONT_SIZE * 1.05) + letterSpacing;
         let totalH = charSpacing * (TARGET_TEXT.length - 1);
         let startY = height / 2 - totalH / 2;
         for (let i = 0; i < TARGET_TEXT.length; i++) {
