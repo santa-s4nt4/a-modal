@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <title>あ！もーだる</title>
+  <link rel="icon" href="favicon.png">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.js"></script>
+  <script async src="https://docs.opencv.org/4.8.0/opencv.js" onload="onOpenCvReady();" type="text/javascript"></script>
+  <style>
+    /* 全体レイアウト */
+    body,
+    html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: #E5E5E5;
+      color: #333;
+      overflow: hidden;
+    }
+
+    #app-container {
+      display: flex;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    /* 左側：ワークスペース */
+    #workspace {
+      flex: 1;
+      display: flex;
+      overflow: auto;
+      padding: 40px;
+      box-sizing: border-box;
+      align-items: center;
+      justify-content: center;
+      gap: 40px;
+    }
+
+    #workspace.layout-vertical {
+      flex-direction: column;
+    }
+
+    #workspace.layout-horizontal {
+      flex-direction: row;
+    }
+
+    .canvas-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .canvas-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: #888;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    canvas {
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      background: #fff;
+      cursor: crosshair;
+      display: block;
+    }
+
+    /* 右側：Figmaライクなサイドバー */
+    #sidebar {
+      width: 260px;
+      min-width: 260px;
+      background-color: #FFFFFF;
+      border-left: 1px solid #E5E5E5;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      font-size: 11px;
+      color: #333;
+      box-shadow: -2px 0 5px rgba(0, 0, 0, 0.02);
+    }
+
+    /* サイドバーの各セクション */
+    .panel-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid #E5E5E5;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .panel-header .tab {
+      color: #333;
+      border-bottom: 2px solid #333;
+      padding-bottom: 2px;
+    }
+
+    .section {
+      border-bottom: 1px solid #E5E5E5;
+      padding: 12px 16px;
+    }
+
+    .section-title {
+      font-weight: 600;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+      align-items: center;
+    }
+
+    .row.split {
+      justify-content: space-between;
+    }
+
+    /* フォーム要素のFigma風スタイリング */
+    label {
+      color: #888;
+      width: 24px;
+      text-align: center;
+      font-weight: 500;
+    }
+
+    input[type="text"],
+    select,
+    input[type="number"] {
+      width: 100%;
+      height: 28px;
+      padding: 0 8px;
+      border: 1px solid transparent;
+      background-color: #F5F5F5;
+      border-radius: 2px;
+      font-size: 11px;
+      color: #333;
+      box-sizing: border-box;
+      outline: none;
+      transition: all 0.2s;
+      font-family: inherit;
+    }
+
+    input[type="text"]:hover,
+    select:hover,
+    input[type="number"]:hover {
+      border-color: #E5E5E5;
+    }
+
+    input[type="text"]:focus,
+    select:focus,
+    input[type="number"]:focus {
+      border-color: #18A0FB;
+      background-color: #FFF;
+      box-shadow: 0 0 0 1px #18A0FB;
+    }
+
+    input[type="range"] {
+      flex: 1;
+      height: 4px;
+      background: #E5E5E5;
+      border-radius: 2px;
+      outline: none;
+      -webkit-appearance: none;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 12px;
+      height: 12px;
+      background: #fff;
+      border: 1px solid #ccc;
+      border-radius: 50%;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+      cursor: pointer;
+    }
+
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+    }
+
+    input[type="checkbox"] {
+      margin: 0;
+      cursor: pointer;
+      accent-color: #18A0FB;
+    }
+
+    /* ボタン類 */
+    button {
+      height: 28px;
+      width: 100%;
+      background-color: #F5F5F5;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #333;
+      cursor: pointer;
+      margin-bottom: 8px;
+      transition: all 0.2s;
+    }
+
+    button:hover {
+      background-color: #EAEAEA;
+    }
+
+    button.primary {
+      background-color: #18A0FB;
+      color: #FFF;
+    }
+
+    button.primary:hover {
+      background-color: #0D8DE3;
+    }
+
+    button.danger {
+      color: #F24822;
+    }
+
+    button.danger:hover {
+      background-color: #FEECE8;
+      color: #F24822;
+    }
+
+    /* スコア表示パネル */
+    .score-block {
+      background: #F5F5F5;
+      border-radius: 6px;
+      padding: 12px;
+      margin-bottom: 8px;
+    }
+
+    .score-total {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 4px;
+      display: block;
+      text-align: right;
+    }
+
+    .score-status {
+      text-align: right;
+      font-weight: 600;
+    }
+
+    .score-detail {
+      display: flex;
+      justify-content: space-between;
+      color: #888;
+      margin-top: 4px;
+      padding-top: 4px;
+      border-top: 1px solid #E5E5E5;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="app-container">
+    <div id="workspace" class="layout-vertical">
+      <div class="canvas-wrapper">
+        <div class="canvas-label">Main Editor</div>
+        <div id="mainCanvasContainer"></div>
+      </div>
+      <div class="canvas-wrapper">
+        <div class="canvas-label">Preview</div>
+        <canvas id="previewCanvas"></canvas>
+      </div>
+    </div>
+
+    <div id="sidebar">
+      <div class="panel-header">
+        <span class="tab">Design</span>
+        <span style="color: #b3b3b3;">Prototype</span>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Text</div>
+        <div class="row">
+          <input type="text" id="targetText" value="あ！もーだる" placeholder="テキストを入力">
+        </div>
+        <div class="row split">
+          <select id="dirSelect" style="width: 100%;">
+            <option value="horizontal">横書き (Horizontal)</option>
+            <option value="vertical">縦書き (Vertical)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Typography</div>
+        <div class="row">
+          <select id="fontSelect">
+            <optgroup label="Mac 標準フォント">
+              <option value="'Hiragino Sans', sans-serif">ヒラギノ角ゴシック</option>
+              <option value="'Hiragino Mincho ProN', serif">ヒラギノ明朝 ProN</option>
+              <option value="'TsukuARdGothic-Regular', sans-serif">筑紫A丸ゴシック</option>
+              <option value="'TsukuAOldMincho-Pr6-R', serif">筑紫Aオールド明朝</option>
+              <option value="'Helvetica Neue', Helvetica, Arial, sans-serif">Helvetica Neue (欧文)</option>
+            </optgroup>
+            <optgroup label="Windows/共通 フォント">
+              <option value="'Yu Gothic', '游ゴシック', sans-serif">游ゴシック</option>
+              <option value="'Yu Mincho', '游明朝', serif">游明朝</option>
+              <option value="'Meiryo', 'メイリオ', sans-serif">メイリオ</option>
+              <option value="sans-serif">デフォルト ゴシック (OS依存)</option>
+              <option value="serif">デフォルト 明朝 (OS依存)</option>
+            </optgroup>
+            <optgroup label="カスタム">
+              <option value="custom">✍️ フォント名を直接入力...</option>
+            </optgroup>
+          </select>
+        </div>
+        <div class="row" id="customFontRow" style="display: none;">
+          <input type="text" id="customFontInput" placeholder="例: A-OTF Gothic MB101 Pr6"
+            title="Macにインストールされているフォント名（PostScript名等）を正確に入力してください">
+        </div>
+        <button id="updateBtn" style="margin-top: 8px;">変更を適用＆再解析</button>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Mask Shape</div>
+        <div class="row">
+          <select id="shapeSelect">
+            <option value="circle">Ellipse (円)</option>
+            <option value="rect">Rectangle (四角)</option>
+          </select>
+        </div>
+        <div class="row">
+          <label>W</label>
+          <input type="range" id="sizeSlider" min="20" max="200" value="60">
+          <input type="number" id="sizeValInput" value="60" style="width: 48px;">
+        </div>
+        <div class="row" style="margin-top: 16px;">
+          <button id="clearBtn" class="danger">配置をすべてクリア</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Analysis Score</div>
+        <div class="score-block">
+          <span id="total-score" class="score-total" style="color: #18A0FB;">0</span>
+          <div id="status-score" class="score-status" style="color: #333;">-</div>
+          <div class="score-detail">
+            <span>Critical <span id="critical-score" style="color: #F24822; font-weight: bold;">0</span></span>
+            <span>Edge <span id="edge-score" style="color: #1BC47D; font-weight: bold;">0</span></span>
+          </div>
+        </div>
+        <label class="checkbox-row" style="width: 100%; text-align: left; margin-top: 8px;">
+          <input type="checkbox" id="previewToggle" checked>
+          <span>プレビューにマスク（白）を適用</span>
+        </label>
+        <p style="color: #888; margin: 8px 0 0 0; line-height: 1.4;">
+          ※ Cmd+ZでUndo、Cmd+Shift+ZでRedo。<br>※ Spaceキーで特徴点表示切替。
+        </p>
+      </div>
+
+      <div class="section" style="border-bottom: none;">
+        <div class="section-title">Export</div>
+        <button id="exportBtn" class="primary">SVGを書き出し</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let cvReady = false;
+    let featureExtracted = false;
+
+    // 基本パラメーター
+    let TARGET_TEXT = "あ！もーだる";
+    let CURRENT_FONT = "'Hiragino Sans', sans-serif";
+    let TEXT_DIR = "horizontal";
+    const FONT_SIZE = 300;
+    const CORNER_THRESHOLD = 150;
+    const CRITICAL_ZONE_RADIUS = 20;
+
+    // 状態管理
+    let criticalPoints = [];
+    let edgePoints = [];
+    let placedMasks = [];
+    let undoneMasks = [];
+    let pg;
+    let showDebug = true;
+
+    function onOpenCvReady() {
+      cvReady = true;
+      console.log("OpenCV.js Ready");
+    }
+
+    function setup() {
+      let cvs = createCanvas(400, 400);
+      cvs.parent('mainCanvasContainer');
+      pg = createGraphics(width, height);
+
+      // UIイベントバインド
+      document.getElementById('updateBtn').addEventListener('click', applyChanges);
+      document.getElementById('clearBtn').addEventListener('click', () => { placedMasks = []; undoneMasks = []; });
+      document.getElementById('exportBtn').addEventListener('click', exportSVG);
+
+      // カスタムフォント入力欄の表示切り替え
+      document.getElementById('fontSelect').addEventListener('change', (e) => {
+        let customRow = document.getElementById('customFontRow');
+        if (e.target.value === 'custom') {
+          customRow.style.display = 'flex';
+          document.getElementById('customFontInput').focus();
+        } else {
+          customRow.style.display = 'none';
+        }
+      });
+
+      // スライダーと数値入力の同期
+      let slider = document.getElementById('sizeSlider');
+      let numInput = document.getElementById('sizeValInput');
+      slider.addEventListener('input', (e) => { numInput.value = e.target.value; });
+      numInput.addEventListener('change', (e) => { slider.value = e.target.value; });
+
+      // Undo/Redo
+      window.addEventListener('keydown', (e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
+          if (e.shiftKey) {
+            if (undoneMasks.length > 0) placedMasks.push(undoneMasks.pop());
+          } else {
+            if (placedMasks.length > 0) undoneMasks.push(placedMasks.pop());
+          }
+          e.preventDefault();
+        }
+      });
+
+      applyChanges();
+    }
+
+    function applyChanges() {
+      TARGET_TEXT = document.getElementById('targetText').value || " ";
+      TEXT_DIR = document.getElementById('dirSelect').value;
+
+      // フォントの取得処理（カスタム入力への対応）
+      let selectedFont = document.getElementById('fontSelect').value;
+      if (selectedFont === 'custom') {
+        let customVal = document.getElementById('customFontInput').value;
+        // 空白の場合は安全のためゴシックにフォールバック
+        CURRENT_FONT = customVal ? `'${customVal}', sans-serif` : "sans-serif";
+      } else {
+        CURRENT_FONT = selectedFont;
+      }
+
+      drawingContext.font = `bold ${FONT_SIZE}px ${CURRENT_FONT}`;
+
+      let newWidth = 400;
+      let newHeight = 400;
+      let workspace = document.getElementById('workspace');
+
+      if (TEXT_DIR === "horizontal") {
+        let textWidthCalc = drawingContext.measureText(TARGET_TEXT).width;
+        newWidth = Math.max(400, textWidthCalc + 200);
+        newHeight = FONT_SIZE + 150;
+        workspace.className = "layout-vertical";
+      } else {
+        newWidth = Math.max(400, FONT_SIZE + 150);
+        newHeight = (FONT_SIZE * 1.05 * TARGET_TEXT.length) + 150;
+        workspace.className = "layout-horizontal";
+      }
+
+      resizeCanvas(newWidth, newHeight);
+      pg.resizeCanvas(newWidth, newHeight);
+
+      let pCanvas = document.getElementById('previewCanvas');
+      pCanvas.width = newWidth;
+      pCanvas.height = newHeight;
+
+      criticalPoints = [];
+      edgePoints = [];
+      featureExtracted = false;
+    }
+
+    function renderTextToBuffer() {
+      pg.background(255);
+      pg.fill(0);
+      pg.textAlign(CENTER, CENTER);
+      pg.textFont(CURRENT_FONT);
+      pg.textSize(FONT_SIZE);
+      pg.textStyle(BOLD);
+
+      if (TEXT_DIR === "horizontal") {
+        pg.text(TARGET_TEXT, width / 2, height / 2);
+      } else {
+        let charSpacing = FONT_SIZE * 1.05;
+        let totalH = charSpacing * (TARGET_TEXT.length - 1);
+        let startY = height / 2 - totalH / 2;
+        for (let i = 0; i < TARGET_TEXT.length; i++) {
+          pg.text(TARGET_TEXT[i], width / 2, startY + i * charSpacing);
+        }
+      }
+    }
+
+    function checkCollision(px, py, mask) {
+      if (mask.shape === 'circle') {
+        return (px - mask.x) ** 2 + (py - mask.y) ** 2 < mask.size ** 2;
+      } else if (mask.shape === 'rect') {
+        return Math.abs(px - mask.x) < mask.size && Math.abs(py - mask.y) < mask.size;
+      }
+      return false;
+    }
+
+    function draw() {
+      if (!cvReady) return;
+
+      if (!featureExtracted) {
+        renderTextToBuffer();
+        extractFeatures();
+        featureExtracted = true;
+      }
+
+      background(255);
+      image(pg, 0, 0);
+
+      let currentShape = document.getElementById('shapeSelect').value;
+      let currentSize = parseInt(document.getElementById('sizeSlider').value);
+      let isHoveringCanvas = mouseX >= 0 && mouseX <= width && mouseY >= 0 && mouseY <= height;
+
+      let allMasks = [...placedMasks];
+      if (isHoveringCanvas) {
+        allMasks.push({ x: mouseX, y: mouseY, size: currentSize, shape: currentShape });
+      }
+
+      let nc = 0; let ne = 0;
+      for (let p of criticalPoints) {
+        if (allMasks.some(m => checkCollision(p.x, p.y, m))) nc++;
+      }
+      for (let p of edgePoints) {
+        if (allMasks.some(m => checkCollision(p.x, p.y, m))) ne++;
+      }
+
+      let score = Math.floor((1 * ne) - (80 * nc));
+
+      fill(0, 0, 0, 80);
+      noStroke();
+      for (let m of placedMasks) {
+        if (m.shape === 'circle') circle(m.x, m.y, m.size * 2);
+        if (m.shape === 'rect') rectMode(CENTER), rect(m.x, m.y, m.size * 2, m.size * 2), rectMode(CORNER);
+      }
+
+      if (isHoveringCanvas) {
+        if (score > 100 && nc === 0) fill(27, 196, 125, 180);
+        else if (nc > 0) fill(242, 72, 34, 180);
+        else fill(100, 100, 100, 150);
+
+        if (currentShape === 'circle') circle(mouseX, mouseY, currentSize * 2);
+        if (currentShape === 'rect') rectMode(CENTER), rect(mouseX, mouseY, currentSize * 2, currentSize * 2), rectMode(CORNER);
+      }
+
+      if (showDebug) {
+        fill(200, 200, 255); for (let p of edgePoints) circle(p.x, p.y, 3);
+        fill(242, 72, 34); for (let p of criticalPoints) circle(p.x, p.y, 8);
+      }
+
+      updateScoreUI(score, nc, ne);
+      updatePreviewCanvas();
+    }
+
+    function updateScoreUI(score, nc, ne) {
+      let totalEl = document.getElementById('total-score');
+      totalEl.innerText = score;
+      totalEl.style.color = nc > 0 ? "#F24822" : (score > 100 ? "#1BC47D" : "#18A0FB");
+
+      document.getElementById('critical-score').innerText = nc;
+      document.getElementById('edge-score').innerText = ne;
+
+      let statusEl = document.getElementById('status-score');
+      if (nc > 0) {
+        statusEl.innerText = "Error: 交点隠蔽";
+        statusEl.style.color = "#F24822";
+      } else if (score > 100) {
+        statusEl.innerText = "Success: 補完成功";
+        statusEl.style.color = "#1BC47D";
+      } else {
+        statusEl.innerText = "Neutral";
+        statusEl.style.color = "#888";
+      }
+    }
+
+    function updatePreviewCanvas() {
+      let pCanvas = document.getElementById('previewCanvas');
+      let ctx = pCanvas.getContext('2d');
+
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, pCanvas.width, pCanvas.height);
+      ctx.drawImage(pg.canvas, 0, 0);
+
+      if (document.getElementById('previewToggle').checked) {
+        ctx.fillStyle = "#ffffff";
+        for (let m of placedMasks) {
+          ctx.beginPath();
+          if (m.shape === 'circle') {
+            ctx.arc(m.x, m.y, m.size, 0, Math.PI * 2);
+          } else if (m.shape === 'rect') {
+            ctx.rect(m.x - m.size, m.y - m.size, m.size * 2, m.size * 2);
+          }
+          ctx.fill();
+        }
+      }
+    }
+
+    function mousePressed() {
+      if (mouseX >= 0 && mouseX <= width && mouseY >= 0 && mouseY <= height) {
+        let currentShape = document.getElementById('shapeSelect').value;
+        let currentSize = parseInt(document.getElementById('sizeSlider').value);
+        placedMasks.push({ x: mouseX, y: mouseY, size: currentSize, shape: currentShape });
+        undoneMasks = [];
+      }
+    }
+
+    function exportSVG() {
+      let svgCode = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">\n`;
+      svgCode += `<rect width="${width}" height="${height}" fill="white" />\n`;
+
+      if (TEXT_DIR === "horizontal") {
+        svgCode += `<text x="${width / 2}" y="${height / 2}" font-family="${CURRENT_FONT}" font-size="${FONT_SIZE}" font-weight="bold" text-anchor="middle" dominant-baseline="central" fill="black">${TARGET_TEXT}</text>\n`;
+      } else {
+        let charSpacing = FONT_SIZE * 1.05;
+        let totalH = charSpacing * (TARGET_TEXT.length - 1);
+        let startY = height / 2 - totalH / 2;
+        for (let i = 0; i < TARGET_TEXT.length; i++) {
+          svgCode += `<text x="${width / 2}" y="${startY + i * charSpacing}" font-family="${CURRENT_FONT}" font-size="${FONT_SIZE}" font-weight="bold" text-anchor="middle" dominant-baseline="central" fill="black">${TARGET_TEXT[i]}</text>\n`;
+        }
+      }
+
+      for (let m of placedMasks) {
+        if (m.shape === 'circle') {
+          svgCode += `<circle cx="${m.x}" cy="${m.y}" r="${m.size}" fill="white" />\n`;
+        } else if (m.shape === 'rect') {
+          svgCode += `<rect x="${m.x - m.size}" y="${m.y - m.size}" width="${m.size * 2}" height="${m.size * 2}" fill="white" />\n`;
+        }
+      }
+      svgCode += `</svg>`;
+
+      let blob = new Blob([svgCode], { type: "image/svg+xml;charset=utf-8" });
+      let url = URL.createObjectURL(blob);
+      let link = document.createElement("a");
+      link.href = url;
+      link.download = `amodal_${TARGET_TEXT}.svg`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    function extractFeatures() {
+      pg.loadPixels();
+      let src = cv.matFromImageData(pg.drawingContext.getImageData(0, 0, width, height));
+      let gray = new cv.Mat();
+      cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
+      cv.bitwise_not(gray, gray);
+
+      let dst = new cv.Mat(); let dst_norm = new cv.Mat(); let dst_norm_scaled = new cv.Mat();
+      cv.cornerHarris(gray, dst, 2, 3, 0.04);
+      cv.normalize(dst, dst_norm, 0, 255, cv.NORM_MINMAX, cv.CV_32FC1, new cv.Mat());
+      cv.convertScaleAbs(dst_norm, dst_norm_scaled, 1, 0);
+
+      let dataC = dst_norm_scaled.data; let cols = dst_norm_scaled.cols; let rows = dst_norm_scaled.rows;
+
+      for (let i = 0; i < rows; i += 2) {
+        for (let j = 0; j < cols; j += 2) {
+          if (dataC[i * cols + j] > CORNER_THRESHOLD) criticalPoints.push({ x: j, y: i });
+        }
+      }
+
+      let textMask = new cv.Mat();
+      cv.threshold(gray, textMask, 127, 255, cv.THRESH_BINARY);
+      let dataM = textMask.data;
+      let rZoneSq = CRITICAL_ZONE_RADIUS * CRITICAL_ZONE_RADIUS;
+
+      for (let i = 0; i < rows; i += 6) {
+        for (let j = 0; j < cols; j += 6) {
+          if (dataM[i * cols + j] > 127) {
+            let isCritical = false;
+            for (let cp of criticalPoints) {
+              if ((j - cp.x) ** 2 + (i - cp.y) ** 2 < rZoneSq) {
+                isCritical = true; break;
+              }
+            }
+            if (!isCritical) edgePoints.push({ x: j, y: i });
+          }
+        }
+      }
+
+      src.delete(); gray.delete(); dst.delete(); dst_norm.delete();
+      dst_norm_scaled.delete(); textMask.delete();
+    }
+
+    function keyPressed() { if (key === ' ') showDebug = !showDebug; }
+  </script>
+</body>
+
+</html>
