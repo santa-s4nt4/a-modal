@@ -346,6 +346,20 @@
         <div class="row" style="margin-top: 16px;">
           <button id="clearBtn" class="danger">配置をすべてクリア</button>
         </div>
+
+        <div style="margin-top:12px;">
+          <button id="deleteSelectedBtn">選択レイヤー削除</button>
+
+          <div id="layerList" style="
+              margin-top:8px;
+              max-height:180px;
+              overflow-y:auto;
+              border:1px solid #E5E5E5;
+              border-radius:6px;
+              background:#F5F5F5;
+            ">
+          </div>
+        </div>
       </div>
 
       <div class="section">
@@ -397,6 +411,7 @@
     let undoneMasks = [];
     let pg;
     let showDebug = true;
+    let selectedMaskIndex = -1;
 
     // hand.png
     let handImg;
@@ -421,7 +436,12 @@
 
       // UIイベントバインド
       document.getElementById('updateBtn').addEventListener('click', applyChanges);
-      document.getElementById('clearBtn').addEventListener('click', () => { placedMasks = []; undoneMasks = []; });
+      document.getElementById('clearBtn').addEventListener('click', () => {
+        placedMasks = [];
+        undoneMasks = [];
+        selectedMaskIndex = -1;
+        updateLayerList();
+      });
       document.getElementById('exportBtn').addEventListener('click', exportSVG);
 
       // カスタムフォント入力欄の表示切り替え
@@ -458,7 +478,16 @@
           }
           e.preventDefault();
         }
+
+        if (e.key === 'Delete') {
+          deleteSelectedMask();
+          e.preventDefault();
+        }
       });
+
+      document
+        .getElementById('deleteSelectedBtn')
+        .addEventListener('click', deleteSelectedMask);
 
       applyChanges();
     }
@@ -599,10 +628,38 @@
 
       fill(0, 0, 0, 80);
       noStroke();
-      for (let m of placedMasks) {
-        if (m.shape === 'circle') circle(m.x, m.y, m.size * 2);
-        if (m.shape === 'rect') rectMode(CENTER), rect(m.x, m.y, m.size * 2, m.size * 2), rectMode(CORNER);
-      }
+      placedMasks.forEach((m, index) => {
+
+        if (index === selectedMaskIndex) {
+          fill(255, 215, 0, 180);
+        } else {
+          fill(0, 0, 0, 80);
+        }
+
+        noStroke();
+
+        if (m.shape === 'circle') {
+
+          circle(
+            m.x,
+            m.y,
+            m.size * 2
+          );
+
+        } else {
+
+          rectMode(CENTER);
+
+          rect(
+            m.x,
+            m.y,
+            m.size * 2,
+            m.size * 2
+          );
+
+          rectMode(CORNER);
+        }
+      });
 
       if (isHoveringCanvas) {
         if (score > 100 && nc === 0) fill(27, 196, 125, 180);
@@ -641,6 +698,49 @@
         statusEl.innerText = "Neutral";
         statusEl.style.color = "#888";
       }
+    }
+
+    function updateLayerList() {
+
+      const list = document.getElementById('layerList');
+
+      if (!list) return;
+
+      list.innerHTML = '';
+
+      placedMasks.forEach((mask, index) => {
+
+        const row = document.createElement('div');
+
+        row.style.padding = '6px 8px';
+        row.style.cursor = 'pointer';
+        row.style.borderBottom = '1px solid #ddd';
+
+        if (index === selectedMaskIndex) {
+          row.style.background = '#FFD84D';
+        }
+
+        row.innerText =
+          `${index + 1} : ${mask.shape} (${Math.round(mask.x)}, ${Math.round(mask.y)})`;
+
+        row.onclick = () => {
+          selectedMaskIndex = index;
+          updateLayerList();
+        };
+
+        list.appendChild(row);
+      });
+    }
+
+    function deleteSelectedMask() {
+
+      if (selectedMaskIndex < 0) return;
+
+      placedMasks.splice(selectedMaskIndex, 1);
+
+      selectedMaskIndex = -1;
+
+      updateLayerList();
     }
 
     function updatePreviewCanvas() {
@@ -718,7 +818,16 @@
       if (mouseX >= 0 && mouseX <= width && mouseY >= 0 && mouseY <= height) {
         let currentShape = document.getElementById('shapeSelect').value;
         let currentSize = parseInt(document.getElementById('sizeSlider').value);
-        placedMasks.push({ x: mouseX, y: mouseY, size: currentSize, shape: currentShape });
+        placedMasks.push({
+          x: mouseX,
+          y: mouseY,
+          size: currentSize,
+          shape: currentShape
+        });
+
+        selectedMaskIndex = -1;
+
+        updateLayerList();
         undoneMasks = [];
       }
     }
