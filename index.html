@@ -396,6 +396,10 @@
           <span>プレビューにマスク（白）を適用</span>
         </label>
         <label class="checkbox-row" style="width: 100%; text-align: left; margin-top: 8px;">
+          <input type="checkbox" id="previewRedToggle">
+          <span>プレビューにマスク（赤）を適用</span>
+        </label>
+        <label class="checkbox-row" style="width: 100%; text-align: left; margin-top: 8px;">
           <input type="checkbox" id="drawHandImage">
           <span>配置図形の中心に hand.png を描画</span>
         </label>
@@ -462,8 +466,10 @@
 
     function setup() {
       let cvs = createCanvas(400, 400);
+      pixelDensity(1);
       cvs.parent('mainCanvasContainer');
       pg = createGraphics(width, height);
+      pg.pixelDensity(1);
 
       // UIイベントバインド
       document.getElementById('updateBtn').addEventListener('click', applyChanges);
@@ -474,6 +480,16 @@
         updateLayerList();
       });
       document.getElementById('exportBtn').addEventListener('click', exportSVG);
+
+      // マスク色の排他制御（トグル処理）
+      let toggleWhite = document.getElementById('previewToggle');
+      let toggleRed = document.getElementById('previewRedToggle');
+      toggleWhite.addEventListener('change', (e) => {
+        if (e.target.checked) toggleRed.checked = false;
+      });
+      toggleRed.addEventListener('change', (e) => {
+        if (e.target.checked) toggleWhite.checked = false;
+      });
 
       // カスタムフォント入力
       document.getElementById('fontSelect').addEventListener('change', (e) => {
@@ -798,8 +814,11 @@
       ctx.fillRect(0, 0, pCanvas.width, pCanvas.height);
       ctx.drawImage(pg.canvas, 0, 0);
 
-      if (document.getElementById('previewToggle').checked) {
-        ctx.fillStyle = "#ffffff";
+      let isWhite = document.getElementById('previewToggle').checked;
+      let isRed = document.getElementById('previewRedToggle').checked;
+
+      if (isWhite || isRed) {
+        ctx.fillStyle = isRed ? "#ff0000" : "#ffffff";
         for (let m of placedMasks) {
           ctx.beginPath();
           if (m.shape === 'circle') {
@@ -855,6 +874,8 @@
       svgCode += `<rect width="${width}" height="${height}" fill="white" />\n`;
 
       let letterSpacing = parseInt(document.getElementById('letterSpacingSlider').value);
+      let isRed = document.getElementById('previewRedToggle').checked;
+      let maskColor = isRed ? "#ff0000" : "white";
 
       if (TEXT_DIR === "horizontal") {
         drawingContext.font = `bold ${FONT_SIZE}px ${CURRENT_FONT}`;
@@ -882,9 +903,9 @@
 
       for (let m of placedMasks) {
         if (m.shape === 'circle') {
-          svgCode += `<circle cx="${m.x}" cy="${m.y}" r="${m.size}" fill="white" />\n`;
+          svgCode += `<circle cx="${m.x}" cy="${m.y}" r="${m.size}" fill="${maskColor}" />\n`;
         } else if (m.shape === 'rect') {
-          svgCode += `<rect x="${m.x - m.size}" y="${m.y - m.size}" width="${m.size * 2}" height="${m.size * 2}" fill="white" />\n`;
+          svgCode += `<rect x="${m.x - m.size}" y="${m.y - m.size}" width="${m.size * 2}" height="${m.size * 2}" fill="${maskColor}" />\n`;
         }
       }
       svgCode += `</svg>`;
