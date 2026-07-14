@@ -7,7 +7,8 @@
   <title>あ！もーだる</title>
   <link rel="icon" href="favicon.png">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.js"></script>
-  <script async src="https://docs.opencv.org/4.8.0/opencv.js" onload="onOpenCvReady();" type="text/javascript"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/opentype.js/1.3.4/opentype.min.js"></script>
+  <script async src="opencv.js" onload="onOpenCvReady();" type="text/javascript"></script>
   <style>
     /* 全体レイアウト */
     body,
@@ -27,16 +28,14 @@
       width: 100vw;
     }
 
-    /* 左側：ワークスペース（無限キャンバス用ラッパー） */
+    /* 左側：ワークスペース */
     #workspace-viewport {
       flex: 1;
       overflow: hidden;
-      /* はみ出した分を隠す */
       position: relative;
       background-color: #E5E5E5;
     }
 
-    /* 実際のキャンバスが乗るレイヤー */
     #workspace {
       position: absolute;
       transform-origin: 0 0;
@@ -48,7 +47,6 @@
       align-items: center;
       justify-content: center;
       gap: 40px;
-      /* コンテンツが画面より大きい場合は拡張する */
       width: max-content;
       height: max-content;
     }
@@ -85,8 +83,8 @@
 
     /* 右側：Figmaライクなサイドバー */
     #sidebar {
-      width: 260px;
-      min-width: 260px;
+      width: 280px;
+      min-width: 280px;
       background-color: #FFFFFF;
       border-left: 1px solid #E5E5E5;
       display: flex;
@@ -96,23 +94,30 @@
       color: #333;
       box-shadow: -2px 0 5px rgba(0, 0, 0, 0.02);
       z-index: 10;
-      /* キャンバスより前に出す */
     }
 
-    /* サイドバーの各セクション */
-    .panel-header {
-      padding: 12px 16px;
-      border-bottom: 1px solid #E5E5E5;
-      font-weight: 600;
+    /* モードタブ */
+    .mode-tabs {
       display: flex;
-      align-items: center;
-      gap: 16px;
+      border-bottom: 1px solid #E5E5E5;
+      background: #fafafa;
     }
 
-    .panel-header .tab {
-      color: #333;
-      border-bottom: 2px solid #333;
-      padding-bottom: 2px;
+    .mode-tab {
+      flex: 1;
+      padding: 12px 0;
+      text-align: center;
+      font-weight: 600;
+      font-size: 12px;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      color: #888;
+    }
+
+    .mode-tab.active {
+      color: #18A0FB;
+      border-bottom: 2px solid #18A0FB;
+      background: #fff;
     }
 
     .section {
@@ -126,6 +131,7 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      font-size: 12px;
     }
 
     .row {
@@ -139,7 +145,7 @@
       justify-content: space-between;
     }
 
-    /* フォーム要素のFigma風スタイリング */
+    /* フォーム要素 */
     label {
       color: #888;
       width: 24px;
@@ -211,6 +217,17 @@
       accent-color: #18A0FB;
     }
 
+    input[type="file"] {
+      width: 100%;
+      font-size: 11px;
+      cursor: pointer;
+      background: #f9f9f9;
+      padding: 6px;
+      border: 1px dashed #ccc;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+
     /* ボタン類 */
     button {
       height: 28px;
@@ -233,6 +250,9 @@
     button.primary {
       background-color: #18A0FB;
       color: #FFF;
+      font-size: 13px;
+      height: 32px;
+      margin-top: 8px;
     }
 
     button.primary:hover {
@@ -246,6 +266,16 @@
     button.danger:hover {
       background-color: #FEECE8;
       color: #F24822;
+    }
+
+    button.outline-btn {
+      background-color: #fff;
+      border: 1px solid #18A0FB;
+      color: #18A0FB;
+    }
+
+    button.outline-btn:hover {
+      background-color: #F0F8FF;
     }
 
     /* スコア表示パネル */
@@ -297,56 +327,79 @@
     </div>
 
     <div id="sidebar">
-      <div class="panel-header">
-        <span class="tab">Settings</span>
+
+      <div class="mode-tabs">
+        <div class="mode-tab active" id="tabTextMode">テキスト入力</div>
+        <div class="mode-tab" id="tabSvgMode">SVG読込</div>
       </div>
 
-      <div class="section">
-        <div class="section-title">Text</div>
-        <div class="row">
-          <input type="text" id="targetText" value="あ！もーだる" placeholder="テキストを入力">
+      <div id="panelTextMode">
+        <div class="section">
+          <div class="section-title">Text</div>
+          <div class="row">
+            <input type="text" id="targetText" value="あ！もーだる" placeholder="テキストを入力">
+          </div>
+          <div class="row split">
+            <select id="dirSelect" style="width: 100%;">
+              <option value="horizontal">横書き (Horizontal)</option>
+              <option value="vertical">縦書き (Vertical)</option>
+            </select>
+          </div>
+          <div class="row">
+            <label style="width: auto; padding-right: 4px; font-family: monospace; font-weight: bold;">VA</label>
+            <input type="range" id="letterSpacingSlider" min="-100" max="200" value="0">
+            <input type="number" id="letterSpacingInput" value="0" style="width: 48px;">
+          </div>
         </div>
-        <div class="row split">
-          <select id="dirSelect" style="width: 100%;">
-            <option value="horizontal">横書き (Horizontal)</option>
-            <option value="vertical">縦書き (Vertical)</option>
-          </select>
-        </div>
-        <div class="row">
-          <label style="width: auto; padding-right: 4px; font-family: monospace; font-weight: bold;">VA</label>
-          <input type="range" id="letterSpacingSlider" min="-100" max="200" value="0">
-          <input type="number" id="letterSpacingInput" value="0" style="width: 48px;">
+
+        <div class="section">
+          <div class="section-title">Typography (フォント＆パス化)</div>
+
+          <div
+            style="background:#F0F8FF; padding:10px; border-radius:6px; border:1px dashed #18A0FB; margin-bottom:12px;">
+            <label
+              style="width:100%; text-align:left; font-size:10px; margin-bottom:4px; display:block; color:#18A0FB; font-weight:bold;">
+              ✨完璧なアウトライン化のために
+            </label>
+            <p style="font-size:9px; color:#555; margin:0 0 6px 0; line-height:1.4;">
+              ここにお手持ちのフォントファイル(.otf/.ttf)を読み込むと、プレビューと同じ太さ・カーニングで完璧なパス化が可能です。
+            </p>
+            <input type="file" id="fontFileInput" accept=".ttf,.otf,.woff">
+            <div id="fontLoadStatus" style="font-size:10px; color:#888; margin-top:4px; font-weight:bold;">未読み込み
+              (システムフォント使用中)</div>
+          </div>
+
+          <div class="row">
+            <select id="fontSelect">
+              <optgroup label="システムフォント (パス化非対応)">
+                <option value="'Hiragino Sans', sans-serif">ヒラギノ角ゴシック</option>
+                <option value="'Hiragino Mincho ProN', serif">ヒラギノ明朝 ProN</option>
+                <option value="'Yu Gothic', '游ゴシック', sans-serif">游ゴシック</option>
+              </optgroup>
+              <optgroup id="uploadedFontsGroup" label="読み込み済みフォント (パス化対応)">
+              </optgroup>
+            </select>
+          </div>
+
+          <div class="row">
+            <select id="fontWeightSelect">
+              <option value="normal">Normal (標準)</option>
+              <option value="bold" selected>Bold (太字)</option>
+            </select>
+          </div>
+
+          <button id="updateTextBtn" class="outline-btn" style="margin-top: 8px;">テキストを更新＆再解析</button>
         </div>
       </div>
 
-      <div class="section">
-        <div class="section-title">Typography</div>
-        <div class="row">
-          <select id="fontSelect">
-            <optgroup label="Mac 標準フォント">
-              <option value="'Hiragino Sans', sans-serif">ヒラギノ角ゴシック</option>
-              <option value="'Hiragino Mincho ProN', serif">ヒラギノ明朝 ProN</option>
-              <option value="'TsukuARdGothic-Regular', sans-serif">筑紫A丸ゴシック</option>
-              <option value="'TsukuAOldMincho-Pr6-R', serif">筑紫Aオールド明朝</option>
-              <option value="'Helvetica Neue', Helvetica, Arial, sans-serif">Helvetica Neue (欧文)</option>
-            </optgroup>
-            <optgroup label="Windows/共通 フォント">
-              <option value="'Yu Gothic', '游ゴシック', sans-serif">游ゴシック</option>
-              <option value="'Yu Mincho', '游明朝', serif">游明朝</option>
-              <option value="'Meiryo', 'メイリオ', sans-serif">メイリオ</option>
-              <option value="sans-serif">デフォルト ゴシック (OS依存)</option>
-              <option value="serif">デフォルト 明朝 (OS依存)</option>
-            </optgroup>
-            <optgroup label="カスタム">
-              <option value="custom">✍️ フォント名を直接入力...</option>
-            </optgroup>
-          </select>
+      <div id="panelSvgMode" style="display: none;">
+        <div class="section">
+          <div class="section-title">Import SVG</div>
+          <p style="color: #666; font-size: 10px; margin-bottom: 8px;">Illustrator等で作成したSVGを読み込みます。（黒いシルエットで作成してください）
+          </p>
+          <input type="file" id="svgImportInput" accept=".svg">
+          <div id="svgLoadStatus" style="font-size:10px; color:#888; margin-top:6px;">未読み込み</div>
         </div>
-        <div class="row" id="customFontRow" style="display: none;">
-          <input type="text" id="customFontInput" placeholder="例: A-OTF Gothic MB101 Pr6"
-            title="Macにインストールされているフォント名（PostScript名等）を正確に入力してください">
-        </div>
-        <button id="updateBtn" style="margin-top: 8px;">変更を適用＆再解析</button>
       </div>
 
       <div class="section">
@@ -359,7 +412,7 @@
         </div>
         <div class="row">
           <label>W</label>
-          <input type="range" id="sizeSlider" min="20" max="200" value="60">
+          <input type="range" id="sizeSlider" min="10" max="400" value="60">
           <input type="number" id="sizeValInput" value="60" style="width: 48px;">
         </div>
         <div class="row" style="margin-top: 16px;">
@@ -368,15 +421,8 @@
 
         <div style="margin-top:12px;">
           <button id="deleteSelectedBtn">選択レイヤー削除</button>
-
-          <div id="layerList" style="
-              margin-top:8px;
-              max-height:180px;
-              overflow-y:auto;
-              border:1px solid #E5E5E5;
-              border-radius:6px;
-              background:#F5F5F5;
-            ">
+          <div id="layerList"
+            style="margin-top:8px; max-height:140px; overflow-y:auto; border:1px solid #E5E5E5; border-radius:6px; background:#F5F5F5;">
           </div>
         </div>
       </div>
@@ -403,13 +449,19 @@
           <input type="checkbox" id="drawHandImage">
           <span>配置図形の中心に hand.png を描画</span>
         </label>
-        <p style="color: #888; margin: 8px 0 0 0; line-height: 1.4;">
-          ※ Cmd+ZでUndo、Cmd+Shift+ZでRedo。<br>※ Spaceキーで特徴点表示切替。
-        </p>
       </div>
 
       <div class="section" style="border-bottom: none;">
         <div class="section-title">Export</div>
+
+        <div id="outlineExportMenu">
+          <label class="checkbox-row"
+            style="width: 100%; text-align: left; margin-bottom: 8px; border: 1px solid #18A0FB; padding: 6px; border-radius: 4px; background: #F0F8FF;">
+            <input type="checkbox" id="outlineExportToggle" checked>
+            <span style="font-weight:bold; color:#18A0FB; font-size:11px;">テキストをアウトライン(パス)化</span>
+          </label>
+        </div>
+
         <button id="exportBtn" class="primary">SVGを書き出し</button>
       </div>
     </div>
@@ -419,41 +471,46 @@
     let cvReady = false;
     let featureExtracted = false;
 
-    // 基本パラメーター
+    // --- エディタモード管理 ---
+    let editorMode = 'text'; // 'text' | 'svg'
+
+    // --- テキストモード用パラメーター ---
     let TARGET_TEXT = "あ！もーだる";
     let CURRENT_FONT = "'Hiragino Sans', sans-serif";
     let TEXT_DIR = "horizontal";
     const FONT_SIZE = 300;
+
+    // --- SVG読み込みモード用パラメーター ---
+    let loadedSvgRawString = null;
+    let loadedSvgImage = null;
+    let svgWidth = 600;
+    let svgHeight = 400;
+
+    // --- OpenCV解析パラメーター ---
     const CORNER_THRESHOLD = 150;
     const CRITICAL_ZONE_RADIUS = 20;
-
-    // 状態管理
     let criticalPoints = [];
     let edgePoints = [];
+
+    // --- 状態管理 ---
     let placedMasks = [];
     let undoneMasks = [];
     let pg;
     let showDebug = true;
     let selectedMaskIndex = -1;
 
-    // Pan & Zoom 管理
-    let panX = 0;
-    let panY = 0;
-    let scaleZoom = 1;
+    // --- Pan & Zoom 管理 ---
+    let panX = 0; let panY = 0; let scaleZoom = 1;
+    let clientX = -1000; let clientY = -1000;
+    window.addEventListener('mousemove', (e) => { clientX = e.clientX; clientY = e.clientY; });
 
-    // グローバルマウス座標 (CSS Transformの影響を受けない画面上の絶対座標)
-    let clientX = -1000;
-    let clientY = -1000;
-
-    window.addEventListener('mousemove', (e) => {
-      clientX = e.clientX;
-      clientY = e.clientY;
-    });
-
-    // hand.png
     let handImg;
     const HAND_OFFSET_X = 0;
-    const HAND_OFFSET_Y = +15;
+    const HAND_OFFSET_Y = 15;
+
+    // --- パス化（アウトライン化）用フォントデータ格納 ---
+    let customOpentypeFont = null;
+    let uploadedFontName = ""; // Canvasに適用するためのCSS Font-Family名
 
     function onOpenCvReady() {
       cvReady = true;
@@ -471,221 +528,256 @@
       pg = createGraphics(width, height);
       pg.pixelDensity(1);
 
-      // UIイベントバインド
-      document.getElementById('updateBtn').addEventListener('click', applyChanges);
-      document.getElementById('clearBtn').addEventListener('click', () => {
-        placedMasks = [];
-        undoneMasks = [];
-        selectedMaskIndex = -1;
-        updateLayerList();
-      });
-      document.getElementById('exportBtn').addEventListener('click', exportSVG);
+      // モード切替のUI制御
+      document.getElementById('tabTextMode').addEventListener('click', () => setMode('text'));
+      document.getElementById('tabSvgMode').addEventListener('click', () => setMode('svg'));
 
-      // マスク色の排他制御（トグル処理）
-      let toggleWhite = document.getElementById('previewToggle');
-      let toggleRed = document.getElementById('previewRedToggle');
-      toggleWhite.addEventListener('change', (e) => {
-        if (e.target.checked) toggleRed.checked = false;
-      });
-      toggleRed.addEventListener('change', (e) => {
-        if (e.target.checked) toggleWhite.checked = false;
-      });
+      // テキストUI
+      document.getElementById('updateTextBtn').addEventListener('click', applyChanges);
+      document.getElementById('fontSelect').addEventListener('change', applyChanges);
+      document.getElementById('fontWeightSelect').addEventListener('change', applyChanges);
 
-      // カスタムフォント入力
-      document.getElementById('fontSelect').addEventListener('change', (e) => {
-        let customRow = document.getElementById('customFontRow');
-        if (e.target.value === 'custom') {
-          customRow.style.display = 'flex';
-          document.getElementById('customFontInput').focus();
-        } else {
-          customRow.style.display = 'none';
-        }
-      });
-
-      // スライダー同期
-      let slider = document.getElementById('sizeSlider');
-      let numInput = document.getElementById('sizeValInput');
-      slider.addEventListener('input', (e) => { numInput.value = e.target.value; });
-      numInput.addEventListener('change', (e) => { slider.value = e.target.value; });
-
-      // 文字間隔
       let lsSlider = document.getElementById('letterSpacingSlider');
       let lsInput = document.getElementById('letterSpacingInput');
       lsSlider.addEventListener('input', (e) => { lsInput.value = e.target.value; });
       lsSlider.addEventListener('change', (e) => { lsInput.value = e.target.value; applyChanges(); });
       lsInput.addEventListener('change', (e) => { lsSlider.value = e.target.value; applyChanges(); });
 
-      // ショートカットキー
+      // SVGアップロードUI
+      document.getElementById('svgImportInput').addEventListener('change', handleSvgUpload);
+
+      // 共通UI
+      document.getElementById('clearBtn').addEventListener('click', () => { placedMasks = []; undoneMasks = []; selectedMaskIndex = -1; updateLayerList(); });
+      document.getElementById('exportBtn').addEventListener('click', exportSVG);
+      document.getElementById('deleteSelectedBtn').addEventListener('click', deleteSelectedMask);
+
+      let toggleWhite = document.getElementById('previewToggle');
+      let toggleRed = document.getElementById('previewRedToggle');
+      toggleWhite.addEventListener('change', (e) => { if (e.target.checked) toggleRed.checked = false; });
+      toggleRed.addEventListener('change', (e) => { if (e.target.checked) toggleWhite.checked = false; });
+
+      let slider = document.getElementById('sizeSlider'); let numInput = document.getElementById('sizeValInput');
+      slider.addEventListener('input', (e) => { numInput.value = e.target.value; });
+      numInput.addEventListener('change', (e) => { slider.value = e.target.value; });
+
+      // ==============================================================
+      // フォントファイルの読み込み ＆ Canvasへのリアルタイム反映処理
+      // ==============================================================
+      document.getElementById('fontFileInput').addEventListener('change', function (e) {
+        const file = e.target.files[0]; if (!file) return;
+
+        // 1. opentype.js でアウトライン用のデータをパース
+        const readerPath = new FileReader();
+        readerPath.onload = function (evt) {
+          try {
+            customOpentypeFont = opentype.parse(evt.target.result);
+            const fontName = customOpentypeFont.names.fontFamily.ja || customOpentypeFont.names.fontFamily.en || 'UserUploadedFont';
+            uploadedFontName = "Custom_" + Date.now(); // CSS上でユニークな名前をつける
+
+            document.getElementById('fontLoadStatus').innerText = `✅ 読込成功: ${fontName}`;
+            document.getElementById('fontLoadStatus').style.color = '#1BC47D';
+
+            // 2. ブラウザの FontFace API を使って Canvas にカスタムフォントを適用
+            const fontFace = new FontFace(uploadedFontName, evt.target.result);
+            fontFace.load().then((loadedFace) => {
+              document.fonts.add(loadedFace);
+
+              // 選択肢に追加して自動選択
+              let group = document.getElementById('uploadedFontsGroup');
+              let opt = document.createElement('option');
+              opt.value = uploadedFontName;
+              opt.text = `🌟 ${fontName} (パス化対応)`;
+              group.appendChild(opt);
+
+              document.getElementById('fontSelect').value = uploadedFontName;
+
+              // アップロードされたフォント自体がウェイトを持っているので、合成太字を解除する
+              document.getElementById('fontWeightSelect').value = 'normal';
+
+              applyChanges();
+            }).catch(err => {
+              console.error("FontFace loading failed", err);
+            });
+
+          } catch (err) {
+            document.getElementById('fontLoadStatus').innerText = '❌ フォントの解析に失敗しました';
+            document.getElementById('fontLoadStatus').style.color = '#F24822';
+            customOpentypeFont = null;
+          }
+        };
+        readerPath.readAsArrayBuffer(file);
+      });
+
+      // ショートカット
       window.addEventListener('keydown', (e) => {
         if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
-          if (e.shiftKey) {
-            if (undoneMasks.length > 0) placedMasks.push(undoneMasks.pop());
-          } else {
-            if (placedMasks.length > 0) undoneMasks.push(placedMasks.pop());
-          }
-          updateLayerList();
-          e.preventDefault();
+          if (e.shiftKey) { if (undoneMasks.length > 0) placedMasks.push(undoneMasks.pop()); }
+          else { if (placedMasks.length > 0) undoneMasks.push(placedMasks.pop()); }
+          updateLayerList(); e.preventDefault();
         }
-
         if (e.key === 'Delete' || e.key === 'Backspace') {
-          // 入力欄にフォーカスがある場合は削除イベントを発火させない
           if (document.activeElement.tagName === 'INPUT') return;
-          deleteSelectedMask();
-          e.preventDefault();
+          deleteSelectedMask(); e.preventDefault();
         }
       });
 
-      document.getElementById('deleteSelectedBtn').addEventListener('click', deleteSelectedMask);
-
-      // Pan & Zoomの初期化
       initPanZoom();
-
       applyChanges();
     }
 
-    // Figmaライクな拡大縮小・移動の実装
+    function setMode(mode) {
+      editorMode = mode;
+      document.getElementById('tabTextMode').classList.toggle('active', mode === 'text');
+      document.getElementById('tabSvgMode').classList.toggle('active', mode === 'svg');
+      document.getElementById('panelTextMode').style.display = mode === 'text' ? 'block' : 'none';
+      document.getElementById('panelSvgMode').style.display = mode === 'svg' ? 'block' : 'none';
+      document.getElementById('outlineExportMenu').style.display = mode === 'text' ? 'block' : 'none';
+      applyChanges();
+    }
+
+    function handleSvgUpload(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const readerText = new FileReader();
+      readerText.onload = (evt) => { loadedSvgRawString = evt.target.result; };
+      readerText.readAsText(file);
+
+      const readerURL = new FileReader();
+      readerURL.onload = (evt) => {
+        loadImage(evt.target.result, (img) => {
+          loadedSvgImage = img;
+          svgWidth = img.width || 600; svgHeight = img.height || 400;
+          document.getElementById('svgLoadStatus').innerText = `✅ 読み込み完了 (${svgWidth}x${svgHeight})`;
+          document.getElementById('svgLoadStatus').style.color = '#1BC47D';
+          applyChanges();
+        });
+      };
+      readerURL.readAsDataURL(file);
+    }
+
     function initPanZoom() {
       const viewport = document.getElementById('workspace-viewport');
       const workspace = document.getElementById('workspace');
 
       viewport.addEventListener('wheel', (e) => {
-        e.preventDefault(); // ブラウザデフォルトのズーム・スクロールを防止
-
+        e.preventDefault();
         if (e.ctrlKey || e.metaKey) {
-          // ピンチイン・アウト（拡大縮小）
-          const zoomFactor = 0.01;
-          const prevZoom = scaleZoom;
+          const zoomFactor = 0.01; const prevZoom = scaleZoom;
           scaleZoom -= e.deltaY * zoomFactor;
-          scaleZoom = Math.max(0.1, Math.min(scaleZoom, 5.0)); // 倍率制限(10% ~ 500%)
-
-          // カーソル位置を中心にズームする計算
+          scaleZoom = Math.max(0.1, Math.min(scaleZoom, 5.0));
           const rect = viewport.getBoundingClientRect();
-          const mouseX = e.clientX - rect.left;
-          const mouseY = e.clientY - rect.top;
-
+          const mouseX = e.clientX - rect.left; const mouseY = e.clientY - rect.top;
           panX = mouseX - (mouseX - panX) * (scaleZoom / prevZoom);
           panY = mouseY - (mouseY - panY) * (scaleZoom / prevZoom);
         } else {
-          // 二本指スクロール（パン移動）
-          panX -= e.deltaX;
-          panY -= e.deltaY;
+          panX -= e.deltaX; panY -= e.deltaY;
         }
-
         workspace.style.transform = `translate(${panX}px, ${panY}px) scale(${scaleZoom})`;
       }, { passive: false });
     }
 
     function applyChanges() {
-      TARGET_TEXT = document.getElementById('targetText').value || " ";
-      TEXT_DIR = document.getElementById('dirSelect').value;
-
-      let selectedFont = document.getElementById('fontSelect').value;
-      if (selectedFont === 'custom') {
-        let customVal = document.getElementById('customFontInput').value;
-        CURRENT_FONT = customVal ? `'${customVal}', sans-serif` : "sans-serif";
-      } else {
-        CURRENT_FONT = selectedFont;
-      }
-
-      drawingContext.font = `bold ${FONT_SIZE}px ${CURRENT_FONT}`;
-      let letterSpacing = parseInt(document.getElementById('letterSpacingSlider').value);
-
-      let newWidth = 400;
-      let newHeight = 400;
+      let newWidth = 400; let newHeight = 400;
       let workspace = document.getElementById('workspace');
 
-      if (TEXT_DIR === "horizontal") {
-        let totalW = 0;
-        for (let i = 0; i < TARGET_TEXT.length; i++) {
-          totalW += drawingContext.measureText(TARGET_TEXT[i]).width;
-          if (i < TARGET_TEXT.length - 1) totalW += letterSpacing;
+      if (editorMode === 'text') {
+        TARGET_TEXT = document.getElementById('targetText').value || " ";
+        TEXT_DIR = document.getElementById('dirSelect').value;
+        CURRENT_FONT = document.getElementById('fontSelect').value;
+        let weightStr = document.getElementById('fontWeightSelect').value;
+
+        // Canvasのフォントコンテキストを更新
+        drawingContext.font = `${weightStr} ${FONT_SIZE}px ${CURRENT_FONT}`;
+        let letterSpacing = parseInt(document.getElementById('letterSpacingSlider').value);
+
+        if (TEXT_DIR === "horizontal") {
+          let totalW = 0;
+          for (let i = 0; i < TARGET_TEXT.length; i++) {
+            totalW += drawingContext.measureText(TARGET_TEXT[i]).width;
+            if (i < TARGET_TEXT.length - 1) totalW += letterSpacing;
+          }
+          newWidth = Math.max(400, totalW + 200);
+          newHeight = FONT_SIZE + 150;
+          workspace.className = "layout-vertical";
+        } else {
+          let charSpacing = (FONT_SIZE * 1.05) + letterSpacing;
+          newWidth = Math.max(400, FONT_SIZE + 150);
+          newHeight = (charSpacing * (TARGET_TEXT.length - 1)) + FONT_SIZE + 150;
+          workspace.className = "layout-horizontal";
         }
-        newWidth = Math.max(400, totalW + 200);
-        newHeight = FONT_SIZE + 150;
+      } else if (editorMode === 'svg') {
+        if (loadedSvgImage) { newWidth = svgWidth; newHeight = svgHeight; }
+        else { newWidth = 600; newHeight = 400; }
         workspace.className = "layout-vertical";
-      } else {
-        let charSpacing = (FONT_SIZE * 1.05) + letterSpacing;
-        newWidth = Math.max(400, FONT_SIZE + 150);
-        newHeight = (charSpacing * (TARGET_TEXT.length - 1)) + FONT_SIZE + 150;
-        workspace.className = "layout-horizontal";
       }
 
       resizeCanvas(newWidth, newHeight);
       pg.resizeCanvas(newWidth, newHeight);
 
       let pCanvas = document.getElementById('previewCanvas');
-      pCanvas.width = newWidth;
-      pCanvas.height = newHeight;
+      pCanvas.width = newWidth; pCanvas.height = newHeight;
 
-      criticalPoints = [];
-      edgePoints = [];
-      featureExtracted = false;
+      criticalPoints = []; edgePoints = []; featureExtracted = false;
     }
 
-    function renderTextToBuffer() {
+    function renderContentToBuffer() {
       pg.background(255);
-      pg.fill(0);
-      pg.textFont(CURRENT_FONT);
-      pg.textSize(FONT_SIZE);
-      pg.textStyle(BOLD);
 
-      let letterSpacing = parseInt(document.getElementById('letterSpacingSlider').value);
+      if (editorMode === 'text') {
+        pg.fill(0);
+        let weightConst = document.getElementById('fontWeightSelect').value === 'bold' ? BOLD : NORMAL;
+        pg.textFont(CURRENT_FONT); pg.textSize(FONT_SIZE); pg.textStyle(weightConst);
 
-      if (TEXT_DIR === "horizontal") {
-        pg.textAlign(LEFT, CENTER);
-        let totalW = 0;
-        let charWidths = [];
-        for (let i = 0; i < TARGET_TEXT.length; i++) {
-          let w = pg.textWidth(TARGET_TEXT[i]);
-          charWidths.push(w);
-          totalW += w;
-          if (i < TARGET_TEXT.length - 1) totalW += letterSpacing;
+        let letterSpacing = parseInt(document.getElementById('letterSpacingSlider').value);
+
+        if (TEXT_DIR === "horizontal") {
+          pg.textAlign(LEFT, CENTER);
+          let totalW = 0; let charWidths = [];
+          for (let i = 0; i < TARGET_TEXT.length; i++) {
+            let w = pg.textWidth(TARGET_TEXT[i]);
+            charWidths.push(w); totalW += w;
+            if (i < TARGET_TEXT.length - 1) totalW += letterSpacing;
+          }
+          let currentX = width / 2 - totalW / 2;
+          for (let i = 0; i < TARGET_TEXT.length; i++) {
+            pg.text(TARGET_TEXT[i], currentX, height / 2);
+            currentX += charWidths[i] + letterSpacing;
+          }
+        } else {
+          pg.textAlign(CENTER, CENTER);
+          let charSpacing = (FONT_SIZE * 1.05) + letterSpacing;
+          let totalH = charSpacing * (TARGET_TEXT.length - 1);
+          let startY = height / 2 - totalH / 2;
+          for (let i = 0; i < TARGET_TEXT.length; i++) {
+            pg.text(TARGET_TEXT[i], width / 2, startY + i * charSpacing);
+          }
         }
-
-        let currentX = width / 2 - totalW / 2;
-        for (let i = 0; i < TARGET_TEXT.length; i++) {
-          pg.text(TARGET_TEXT[i], currentX, height / 2);
-          currentX += charWidths[i] + letterSpacing;
-        }
-      } else {
-        pg.textAlign(CENTER, CENTER);
-        let charSpacing = (FONT_SIZE * 1.05) + letterSpacing;
-        let totalH = charSpacing * (TARGET_TEXT.length - 1);
-        let startY = height / 2 - totalH / 2;
-        for (let i = 0; i < TARGET_TEXT.length; i++) {
-          pg.text(TARGET_TEXT[i], width / 2, startY + i * charSpacing);
+      } else if (editorMode === 'svg') {
+        if (loadedSvgImage) {
+          pg.image(loadedSvgImage, 0, 0, width, height);
+        } else {
+          pg.fill(200); pg.textAlign(CENTER, CENTER); pg.textSize(24);
+          pg.text("SVGファイルを読み込んでください", width / 2, height / 2);
         }
       }
     }
 
     function checkCollision(px, py, mask) {
-      if (mask.shape === 'circle') {
-        return (px - mask.x) ** 2 + (py - mask.y) ** 2 < mask.size ** 2;
-      } else if (mask.shape === 'rect') {
-        return Math.abs(px - mask.x) < mask.size && Math.abs(py - mask.y) < mask.size;
-      }
+      if (mask.shape === 'circle') { return (px - mask.x) ** 2 + (py - mask.y) ** 2 < mask.size ** 2; }
+      else if (mask.shape === 'rect') { return Math.abs(px - mask.x) < mask.size && Math.abs(py - mask.y) < mask.size; }
       return false;
     }
 
-    // CSSスケール・移動を補正した正確なマウスの内部座標を取得
     function getAdjustedMouse() {
       const cvs = document.querySelector('#mainCanvasContainer canvas');
       if (!cvs) return { x: -1000, y: -1000, isHovering: false };
-
       const rect = cvs.getBoundingClientRect();
-
-      // クライアント(画面)座標から、Canvasの描画矩形の左上を原点とした距離を引き、スケール倍率で割る
       const mx = (clientX - rect.left) / scaleZoom;
       const my = (clientY - rect.top) / scaleZoom;
-
       let isHovering = mx >= 0 && mx <= width && my >= 0 && my <= height;
-
-      // マウス位置にあるDOM要素を取得し、Canvas領域以外（UIパネル等）に乗っている場合はHoverをキャンセル
       const hoveredEl = document.elementFromPoint(clientX, clientY);
-      if (hoveredEl && !hoveredEl.closest('#mainCanvasContainer')) {
-        isHovering = false;
-      }
-
+      if (hoveredEl && !hoveredEl.closest('#mainCanvasContainer')) isHovering = false;
       return { x: mx, y: my, isHovering };
     }
 
@@ -693,8 +785,10 @@
       if (!cvReady) return;
 
       if (!featureExtracted) {
-        renderTextToBuffer();
-        extractFeatures();
+        renderContentToBuffer();
+        if (editorMode === 'text' || (editorMode === 'svg' && loadedSvgImage)) {
+          extractFeatures();
+        }
         featureExtracted = true;
       }
 
@@ -703,8 +797,6 @@
 
       let currentShape = document.getElementById('shapeSelect').value;
       let currentSize = parseInt(document.getElementById('sizeSlider').value);
-
-      // 補正されたマウス座標を取得
       let { x: mx, y: my, isHovering: isHoveringCanvas } = getAdjustedMouse();
 
       let allMasks = [...placedMasks];
@@ -713,12 +805,8 @@
       }
 
       let nc = 0; let ne = 0;
-      for (let p of criticalPoints) {
-        if (allMasks.some(m => checkCollision(p.x, p.y, m))) nc++;
-      }
-      for (let p of edgePoints) {
-        if (allMasks.some(m => checkCollision(p.x, p.y, m))) ne++;
-      }
+      for (let p of criticalPoints) { if (allMasks.some(m => checkCollision(p.x, p.y, m))) nc++; }
+      for (let p of edgePoints) { if (allMasks.some(m => checkCollision(p.x, p.y, m))) ne++; }
 
       let score = Math.floor((1 * ne) - (80 * nc));
 
@@ -727,22 +815,15 @@
       placedMasks.forEach((m, index) => {
         if (index === selectedMaskIndex) fill(255, 215, 0, 180);
         else fill(0, 0, 0, 80);
-
         noStroke();
-        if (m.shape === 'circle') {
-          circle(m.x, m.y, m.size * 2);
-        } else {
-          rectMode(CENTER);
-          rect(m.x, m.y, m.size * 2, m.size * 2);
-          rectMode(CORNER);
-        }
+        if (m.shape === 'circle') { circle(m.x, m.y, m.size * 2); }
+        else { rectMode(CENTER); rect(m.x, m.y, m.size * 2, m.size * 2); rectMode(CORNER); }
       });
 
       if (isHoveringCanvas) {
         if (score > 100 && nc === 0) fill(27, 196, 125, 180);
         else if (nc > 0) fill(242, 72, 34, 180);
         else fill(100, 100, 100, 150);
-
         if (currentShape === 'circle') circle(mx, my, currentSize * 2);
         if (currentShape === 'rect') rectMode(CENTER), rect(mx, my, currentSize * 2, currentSize * 2), rectMode(CORNER);
       }
@@ -758,43 +839,23 @@
 
     function updateScoreUI(score, nc, ne) {
       let totalEl = document.getElementById('total-score');
-      totalEl.innerText = score;
-      totalEl.style.color = nc > 0 ? "#F24822" : (score > 100 ? "#1BC47D" : "#18A0FB");
-
-      document.getElementById('critical-score').innerText = nc;
-      document.getElementById('edge-score').innerText = ne;
-
+      totalEl.innerText = score; totalEl.style.color = nc > 0 ? "#F24822" : (score > 100 ? "#1BC47D" : "#18A0FB");
+      document.getElementById('critical-score').innerText = nc; document.getElementById('edge-score').innerText = ne;
       let statusEl = document.getElementById('status-score');
-      if (nc > 0) {
-        statusEl.innerText = "Error: 交点隠蔽";
-        statusEl.style.color = "#F24822";
-      } else if (score > 100) {
-        statusEl.innerText = "Success: 補完成功";
-        statusEl.style.color = "#1BC47D";
-      } else {
-        statusEl.innerText = "Neutral";
-        statusEl.style.color = "#888";
-      }
+      if (nc > 0) { statusEl.innerText = "Error: 交点隠蔽"; statusEl.style.color = "#F24822"; }
+      else if (score > 100) { statusEl.innerText = "Success: 補完成功"; statusEl.style.color = "#1BC47D"; }
+      else { statusEl.innerText = "Neutral"; statusEl.style.color = "#888"; }
     }
 
     function updateLayerList() {
-      const list = document.getElementById('layerList');
-      if (!list) return;
+      const list = document.getElementById('layerList'); if (!list) return;
       list.innerHTML = '';
-
       placedMasks.forEach((mask, index) => {
         const row = document.createElement('div');
-        row.style.padding = '6px 8px';
-        row.style.cursor = 'pointer';
-        row.style.borderBottom = '1px solid #ddd';
-
+        row.style.padding = '6px 8px'; row.style.cursor = 'pointer'; row.style.borderBottom = '1px solid #ddd';
         if (index === selectedMaskIndex) row.style.background = '#FFD84D';
-
         row.innerText = `${index + 1} : ${mask.shape} (${Math.round(mask.x)}, ${Math.round(mask.y)})`;
-        row.onclick = () => {
-          selectedMaskIndex = index;
-          updateLayerList();
-        };
+        row.onclick = () => { selectedMaskIndex = index; updateLayerList(); };
         list.appendChild(row);
       });
     }
@@ -802,16 +863,13 @@
     function deleteSelectedMask() {
       if (selectedMaskIndex < 0) return;
       placedMasks.splice(selectedMaskIndex, 1);
-      selectedMaskIndex = -1;
-      updateLayerList();
+      selectedMaskIndex = -1; updateLayerList();
     }
 
     function updatePreviewCanvas() {
-      let pCanvas = document.getElementById('previewCanvas');
-      let ctx = pCanvas.getContext('2d');
+      let pCanvas = document.getElementById('previewCanvas'); let ctx = pCanvas.getContext('2d');
+      ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, pCanvas.width, pCanvas.height);
 
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, pCanvas.width, pCanvas.height);
       ctx.drawImage(pg.canvas, 0, 0);
 
       let isWhite = document.getElementById('previewToggle').checked;
@@ -821,11 +879,8 @@
         ctx.fillStyle = isRed ? "#ff0000" : "#ffffff";
         for (let m of placedMasks) {
           ctx.beginPath();
-          if (m.shape === 'circle') {
-            ctx.arc(m.x, m.y, m.size, 0, Math.PI * 2);
-          } else {
-            ctx.rect(m.x - m.size, m.y - m.size, m.size * 2, m.size * 2);
-          }
+          if (m.shape === 'circle') { ctx.arc(m.x, m.y, m.size, 0, Math.PI * 2); }
+          else { ctx.rect(m.x - m.size, m.y - m.size, m.size * 2, m.size * 2); }
           ctx.fill();
         }
       }
@@ -833,88 +888,114 @@
       if (document.getElementById('drawHandImage').checked && handImg && placedMasks.length > 0) {
         for (let m of placedMasks) {
           const imgSize = m.size * 3;
-          ctx.drawImage(
-            handImg.canvas,
-            Math.round(m.x - imgSize / 2 + HAND_OFFSET_X),
-            Math.round(m.y - imgSize / 2 + HAND_OFFSET_Y),
-            imgSize,
-            imgSize
-          );
+          ctx.drawImage(handImg.canvas, Math.round(m.x - imgSize / 2 + HAND_OFFSET_X), Math.round(m.y - imgSize / 2 + HAND_OFFSET_Y), imgSize, imgSize);
         }
       }
     }
 
-    // クリックイベントの伝播・誤動作防止用の引数(event)を追加
     function mousePressed(event) {
-      // クリックされた要素が mainCanvasContainer の中でない場合は処理を無視する（サイドバー等のクリックを防ぐ）
-      if (event && event.target && !event.target.closest('#mainCanvasContainer')) {
-        return;
-      }
+      if (event && event.target && !event.target.closest('#mainCanvasContainer')) return;
+      if (editorMode === 'svg' && !loadedSvgImage) return;
 
       let { x: mx, y: my, isHovering } = getAdjustedMouse();
-
       if (isHovering) {
         let currentShape = document.getElementById('shapeSelect').value;
         let currentSize = parseInt(document.getElementById('sizeSlider').value);
-        placedMasks.push({
-          x: mx,
-          y: my,
-          size: currentSize,
-          shape: currentShape
-        });
-
-        selectedMaskIndex = -1;
-        updateLayerList();
-        undoneMasks = [];
+        placedMasks.push({ x: mx, y: my, size: currentSize, shape: currentShape });
+        selectedMaskIndex = -1; updateLayerList(); undoneMasks = [];
       }
     }
 
+    // --- エクスポート処理 ---
     function exportSVG() {
-      let svgCode = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">\n`;
-      svgCode += `<rect width="${width}" height="${height}" fill="white" />\n`;
-
-      let letterSpacing = parseInt(document.getElementById('letterSpacingSlider').value);
+      let finalSvgString = "";
       let isRed = document.getElementById('previewRedToggle').checked;
       let maskColor = isRed ? "#ff0000" : "white";
 
-      if (TEXT_DIR === "horizontal") {
-        drawingContext.font = `bold ${FONT_SIZE}px ${CURRENT_FONT}`;
-        let totalW = 0;
-        let charWidths = [];
-        for (let i = 0; i < TARGET_TEXT.length; i++) {
-          let w = drawingContext.measureText(TARGET_TEXT[i]).width;
-          charWidths.push(w);
-          totalW += w;
-          if (i < TARGET_TEXT.length - 1) totalW += letterSpacing;
-        }
-        let currentX = width / 2 - totalW / 2;
-        for (let i = 0; i < TARGET_TEXT.length; i++) {
-          svgCode += `<text x="${currentX}" y="${height / 2}" font-family="${CURRENT_FONT}" font-size="${FONT_SIZE}" font-weight="bold" text-anchor="start" dominant-baseline="central" fill="black">${TARGET_TEXT[i]}</text>\n`;
-          currentX += charWidths[i] + letterSpacing;
-        }
-      } else {
-        let charSpacing = (FONT_SIZE * 1.05) + letterSpacing;
-        let totalH = charSpacing * (TARGET_TEXT.length - 1);
-        let startY = height / 2 - totalH / 2;
-        for (let i = 0; i < TARGET_TEXT.length; i++) {
-          svgCode += `<text x="${width / 2}" y="${startY + i * charSpacing}" font-family="${CURRENT_FONT}" font-size="${FONT_SIZE}" font-weight="bold" text-anchor="middle" dominant-baseline="central" fill="black">${TARGET_TEXT[i]}</text>\n`;
-        }
-      }
-
+      let maskTags = "";
       for (let m of placedMasks) {
-        if (m.shape === 'circle') {
-          svgCode += `<circle cx="${m.x}" cy="${m.y}" r="${m.size}" fill="${maskColor}" />\n`;
-        } else if (m.shape === 'rect') {
-          svgCode += `<rect x="${m.x - m.size}" y="${m.y - m.size}" width="${m.size * 2}" height="${m.size * 2}" fill="${maskColor}" />\n`;
-        }
+        if (m.shape === 'circle') { maskTags += `<circle cx="${m.x}" cy="${m.y}" r="${m.size}" fill="${maskColor}" />\n`; }
+        else if (m.shape === 'rect') { maskTags += `<rect x="${m.x - m.size}" y="${m.y - m.size}" width="${m.size * 2}" height="${m.size * 2}" fill="${maskColor}" />\n`; }
       }
-      svgCode += `</svg>`;
 
-      let blob = new Blob([svgCode], { type: "image/svg+xml;charset=utf-8" });
+      if (editorMode === 'svg') {
+        if (!loadedSvgRawString) {
+          alert("SVGファイルが読み込まれていません。"); return;
+        }
+        finalSvgString = loadedSvgRawString.replace(/<\/svg>\s*$/i, `\n\n${maskTags}\n</svg>`);
+
+      } else {
+        // テキストモードのエクスポート
+        finalSvgString = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">\n`;
+        finalSvgString += `<rect width="${width}" height="${height}" fill="white" />\n`;
+
+        let letterSpacing = parseInt(document.getElementById('letterSpacingSlider').value);
+        let isOutlineMode = document.getElementById('outlineExportToggle').checked;
+        let isCustomFontActive = (document.getElementById('fontSelect').value === uploadedFontName);
+
+        if (isOutlineMode && !isCustomFontActive) {
+          alert("【アウトライン化エラー】\nシステムフォント（ヒラギノ等）はブラウザの制限で直接パス化できません。\nTypographyパネルの「ローカルフォントを読み込む」から .ttf または .otf ファイルを読み込み、適用してください。");
+          return;
+        }
+
+        if (TEXT_DIR === "horizontal") {
+          drawingContext.font = `bold ${FONT_SIZE}px ${CURRENT_FONT}`;
+          let totalW = 0; let charWidths = [];
+
+          // Canvasと同じ文字幅計算を利用
+          for (let i = 0; i < TARGET_TEXT.length; i++) {
+            let w = drawingContext.measureText(TARGET_TEXT[i]).width;
+            charWidths.push(w); totalW += w;
+            if (i < TARGET_TEXT.length - 1) totalW += letterSpacing;
+          }
+
+          let currentX = width / 2 - totalW / 2;
+          for (let i = 0; i < TARGET_TEXT.length; i++) {
+            if (isOutlineMode && customOpentypeFont) {
+              // ベースライン位置の調整 (Canvasと合わせるためフォントサイズの約33%を加算)
+              let baselineY = (height / 2) + (FONT_SIZE * 0.33);
+              // Canvasで計算した全く同じ currentX を適用する
+              let path = customOpentypeFont.getPath(TARGET_TEXT[i], currentX, baselineY, FONT_SIZE);
+              path.fill = "black";
+              finalSvgString += path.toSVG() + '\n';
+            } else {
+              // アウトライン化しない場合の通常SVGテキスト
+              let weightStr = document.getElementById('fontWeightSelect').value;
+              finalSvgString += `<text x="${currentX}" y="${height / 2}" font-family="${CURRENT_FONT}" font-size="${FONT_SIZE}" font-weight="${weightStr}" text-anchor="start" dominant-baseline="central" fill="black">${TARGET_TEXT[i]}</text>\n`;
+            }
+            currentX += charWidths[i] + letterSpacing;
+          }
+        } else {
+          // 縦書きの処理
+          let charSpacing = (FONT_SIZE * 1.05) + letterSpacing;
+          let totalH = charSpacing * (TARGET_TEXT.length - 1);
+          let startY = height / 2 - totalH / 2;
+
+          for (let i = 0; i < TARGET_TEXT.length; i++) {
+            let yPos = startY + i * charSpacing;
+            if (isOutlineMode && customOpentypeFont) {
+              // Xの中央寄せ
+              let advW = customOpentypeFont.getAdvanceWidth(TARGET_TEXT[i], FONT_SIZE);
+              let charX = (width / 2) - (advW / 2);
+              let baselineY = yPos + (FONT_SIZE * 0.33);
+              let path = customOpentypeFont.getPath(TARGET_TEXT[i], charX, baselineY, FONT_SIZE);
+              path.fill = "black";
+              finalSvgString += path.toSVG() + '\n';
+            } else {
+              let weightStr = document.getElementById('fontWeightSelect').value;
+              finalSvgString += `<text x="${width / 2}" y="${yPos}" font-family="${CURRENT_FONT}" font-size="${FONT_SIZE}" font-weight="${weightStr}" text-anchor="middle" dominant-baseline="central" fill="black">${TARGET_TEXT[i]}</text>\n`;
+            }
+          }
+        }
+        finalSvgString += maskTags;
+        finalSvgString += `</svg>`;
+      }
+
+      let blob = new Blob([finalSvgString], { type: "image/svg+xml;charset=utf-8" });
       let url = URL.createObjectURL(blob);
       let link = document.createElement("a");
       link.href = url;
-      link.download = `amodal_${TARGET_TEXT}.svg`;
+      link.download = editorMode === 'svg' ? `amodal_imported.svg` : `amodal_${TARGET_TEXT}.svg`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -923,9 +1004,7 @@
     function extractFeatures() {
       pg.loadPixels();
       let src = cv.matFromImageData(pg.drawingContext.getImageData(0, 0, width, height));
-      let gray = new cv.Mat();
-      cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
-      cv.bitwise_not(gray, gray);
+      let gray = new cv.Mat(); cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0); cv.bitwise_not(gray, gray);
 
       let dst = new cv.Mat(); let dst_norm = new cv.Mat(); let dst_norm_scaled = new cv.Mat();
       cv.cornerHarris(gray, dst, 2, 3, 0.04);
@@ -933,34 +1012,24 @@
       cv.convertScaleAbs(dst_norm, dst_norm_scaled, 1, 0);
 
       let dataC = dst_norm_scaled.data; let cols = dst_norm_scaled.cols; let rows = dst_norm_scaled.rows;
-
       for (let i = 0; i < rows; i += 2) {
         for (let j = 0; j < cols; j += 2) {
           if (dataC[i * cols + j] > CORNER_THRESHOLD) criticalPoints.push({ x: j, y: i });
         }
       }
 
-      let textMask = new cv.Mat();
-      cv.threshold(gray, textMask, 127, 255, cv.THRESH_BINARY);
-      let dataM = textMask.data;
-      let rZoneSq = CRITICAL_ZONE_RADIUS * CRITICAL_ZONE_RADIUS;
-
+      let textMask = new cv.Mat(); cv.threshold(gray, textMask, 127, 255, cv.THRESH_BINARY);
+      let dataM = textMask.data; let rZoneSq = CRITICAL_ZONE_RADIUS * CRITICAL_ZONE_RADIUS;
       for (let i = 0; i < rows; i += 6) {
         for (let j = 0; j < cols; j += 6) {
           if (dataM[i * cols + j] > 127) {
             let isCritical = false;
-            for (let cp of criticalPoints) {
-              if ((j - cp.x) ** 2 + (i - cp.y) ** 2 < rZoneSq) {
-                isCritical = true; break;
-              }
-            }
+            for (let cp of criticalPoints) { if ((j - cp.x) ** 2 + (i - cp.y) ** 2 < rZoneSq) { isCritical = true; break; } }
             if (!isCritical) edgePoints.push({ x: j, y: i });
           }
         }
       }
-
-      src.delete(); gray.delete(); dst.delete(); dst_norm.delete();
-      dst_norm_scaled.delete(); textMask.delete();
+      src.delete(); gray.delete(); dst.delete(); dst_norm.delete(); dst_norm_scaled.delete(); textMask.delete();
     }
 
     function keyPressed() { if (key === ' ') showDebug = !showDebug; }
